@@ -7,3 +7,12 @@ it("routes bedrock: models to the native adapter with the cached system prefix a
   expect({ exit, stderr }).toEqual({ exit: 0, stderr: "" });
   expect(stdout).toContain("PASS bedrock provider");
 });
+
+it("signs and routes the request through the real Bedrock SDK", async () => {
+  const child = Bun.spawn(["bun", "lib/__tests__/fixtures/bedrock-sdk-real-harness.ts"], {
+    cwd: import.meta.dir + "/../..", stdout: "pipe", stderr: "pipe",
+  });
+  const [exit, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+  expect({ exit, stderr }).toEqual({ exit: 0, stderr: "" });
+  expect(stdout).toContain("PASS real Bedrock SDK request");
+});
