@@ -34,3 +34,19 @@ export function embeddingConfigAdvice(error: unknown): string | undefined {
     return dimensionAdvice(error.actual, error.configured);
   }
 }
+
+/**
+ * Embedding advice that may leave the server. The strings are fixed operator
+ * guidance with no provider data, but they describe deployment configuration,
+ * so outside development they are shown only on self-hosted deployments, where
+ * the caller is the operator who can act on them. Looks through `cause` because
+ * indexing wraps the embedding failure.
+ */
+export function operatorEmbeddingAdvice(error: unknown, selfHosted: boolean): string | undefined {
+  if (!selfHosted && process.env.NODE_ENV !== "development") return undefined;
+  for (let value = error, depth = 0; value && typeof value === "object" && depth < 4; depth++) {
+    const advice = embeddingConfigAdvice(value);
+    if (advice) return advice;
+    value = (value as { cause?: unknown }).cause;
+  }
+}

@@ -4,6 +4,8 @@ import { prisma } from "@octopus/db";
 import { authenticateApiToken } from "@/lib/api-auth";
 import { writeAuditLog } from "@/lib/audit";
 import { isOrgOverSpendLimit } from "@/lib/cost";
+import { operatorEmbeddingAdvice } from "@/lib/embedding-error";
+import { isSelfHosted } from "@/lib/self-hosted";
 import { normaliseRemoteUrl } from "@/app/api/cli/repos/by-remote/route";
 import {
   IN_FLIGHT_WINDOW_MS,
@@ -251,8 +253,11 @@ export async function POST(request: Request) {
     const detail = e instanceof Error ? e.message : String(e);
     console.error(`[cli.index-local] batch ${body.batchIndex}/${body.totalBatches} for ${fullName} failed:`, detail);
     const isProd = process.env.NODE_ENV === "production";
+    // Without this a self-hoster with no embeddings provider sees only a generic
+    // 500 and the CLI silently falls back to bare mode.
+    const advice = operatorEmbeddingAdvice(e, isSelfHosted());
     return NextResponse.json(
-      { error: isProd ? "Indexing batch failed" : `Indexing batch failed: ${detail}` },
+      { error: advice ? `Indexing batch failed: ${advice}` : isProd ? "Indexing batch failed" : `Indexing batch failed: ${detail}` },
       { status: 500 },
     );
   }
