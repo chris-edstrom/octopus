@@ -20,12 +20,14 @@
  * acp-on-an-internal-LAN. The `hosted` flag flips the default behavior:
  * hosted=true → block private ranges; hosted=false (or absent) → allow.
  */
+import { isSelfHosted } from "../self-hosted";
 
 export type UrlValidationOptions = {
   /**
    * When true, block private / loopback / link-local hosts. Defaults to
-   * `process.env.SELF_HOSTED !== "true"` so cloud deployments are protected
-   * by default and self-hosted users can point at localhost / 10.x / 192.168.x.
+   * hosted unless the deployment is self-hosted (`isSelfHosted()`, or the
+   * legacy `SELF_HOSTED=true`), so cloud deployments are protected by default
+   * and self-hosted users can point at localhost / 10.x / 192.168.x.
    */
   hosted?: boolean;
 };
@@ -87,12 +89,14 @@ export function validateProviderUrl(
   }
 
   const host = canonicalHost(parsed);
-  const hosted = options.hosted ?? process.env.SELF_HOSTED !== "true";
+  // The official self-host image sets OCTOPUS_SELF_HOSTED, never SELF_HOSTED;
+  // the legacy name stays honoured for deployments that already set it.
+  const hosted = options.hosted ?? !(isSelfHosted() || process.env.SELF_HOSTED === "true");
   if (hosted) {
     if (PRIVATE_HOST_PATTERNS.some((re) => re.test(host))) {
       throw new Error(
         `Provider URL host "${host}" is private/loopback/link-local; ` +
-          "rejected in hosted mode (set SELF_HOSTED=true on the deployment if intentional).",
+          "rejected in hosted mode (set OCTOPUS_SELF_HOSTED=true on the deployment if intentional).",
       );
     }
   }

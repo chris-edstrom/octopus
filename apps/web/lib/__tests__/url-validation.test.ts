@@ -130,8 +130,10 @@ describe("validateProviderUrl", () => {
   });
 
   describe("default hosted detection", () => {
-    it("defaults to hosted when SELF_HOSTED env is unset", () => {
+    it("defaults to hosted when no self-hosted flag is set", () => {
       delete process.env.SELF_HOSTED;
+      delete process.env.OCTOPUS_SELF_HOSTED;
+      delete process.env.NEXT_PUBLIC_OCTOPUS_SELF_HOSTED;
       expect(() => validateProviderUrl("http://localhost")).toThrow(/private/);
     });
 
@@ -139,6 +141,16 @@ describe("validateProviderUrl", () => {
       process.env.SELF_HOSTED = "true";
       expect(validateProviderUrl("http://localhost")).toBe("http://localhost");
       delete process.env.SELF_HOSTED;
+    });
+
+    it("defaults to self-hosted on the flags the official image sets", () => {
+      for (const flag of ["OCTOPUS_SELF_HOSTED", "NEXT_PUBLIC_OCTOPUS_SELF_HOSTED"]) {
+        process.env[flag] = "true";
+        expect(validateProviderUrl("http://localhost:11434")).toBe("http://localhost:11434");
+        expect(validateProviderUrl("http://192.168.1.10:8317")).toBe("http://192.168.1.10:8317");
+        delete process.env[flag];
+      }
+      expect(() => validateProviderUrl("http://localhost")).toThrow(/OCTOPUS_SELF_HOSTED/);
     });
   });
 });

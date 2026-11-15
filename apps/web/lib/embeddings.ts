@@ -243,13 +243,11 @@ async function embedWithOllama(
   }
   // Defense-in-depth: even though the URL is operator-controlled via env
   // (low SSRF risk), route it through the same validator the per-org BYOK
-  // path uses. `hosted: false` mirrors the `SELF_HOSTED` env default and
-  // allows localhost / RFC1918 destinations for self-hosters.
+  // path uses. Its default allows localhost / RFC1918 destinations on
+  // self-hosted deployments only.
   let safeBaseUrl: string;
   try {
-    safeBaseUrl = validateProviderUrl(config.ollamaBaseUrl, {
-      hosted: process.env.SELF_HOSTED !== "true",
-    });
+    safeBaseUrl = validateProviderUrl(config.ollamaBaseUrl);
   } catch {
     throw new OllamaEmbeddingUrlError();
   }
