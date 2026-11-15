@@ -69,11 +69,12 @@ mock.module("@/lib/webhook-shared", () => ({ startReviewFlow: async (params: Rec
 } }));
 const { POST } = await import("../../../app/api/forgejo/webhook/[integrationId]/route");
 const payload = { action: "opened", repository: { id: 42, full_name: "team/repo" }, pull_request: { number: 7, head: { sha } } };
-async function deliver(body: unknown = payload, options: { event?: string; signature?: string; integrationId?: string } = {}) {
+async function deliver(body: unknown = payload, options: { event?: string; signature?: string; integrationId?: string; vendor?: "forgejo" | "gitea" } = {}) {
+  const vendor = options.vendor ?? "forgejo";
   const raw = typeof body === "string" ? body : JSON.stringify(body);
   const signature = options.signature ?? createHmac("sha256", secret).update(raw).digest("hex");
   return POST(new Request("https://octopus.example/api/forgejo/webhook/integration-a", {
-    method: "POST", body: raw, headers: { "x-forgejo-signature": signature, "x-forgejo-event": options.event ?? "pull_request" },
+    method: "POST", body: raw, headers: { [`x-${vendor}-signature`]: signature, [`x-${vendor}-event`]: options.event ?? "pull_request" },
   }), { params: Promise.resolve({ integrationId: options.integrationId ?? "integration-a" }) });
 }
 assert.equal((await deliver(payload, { signature: "bad" })).status, 401);
@@ -109,6 +110,12 @@ comment.comment.user.login = "member";
 await deliver(comment, { event: "issue_comment" }); assert.equal(reviews.length, 1);
 assert.equal(reviews[0].triggerCommentId, 3);
 assert.equal(reviews[0].prAuthor, "author");
+deliveries.clear(); reviews = [];
+assert.equal((await deliver(payload, { vendor: "gitea", signature: "0".repeat(64) })).status, 401);
+assert.equal((await deliver(payload, { vendor: "gitea" })).status, 200);
+assert.equal(reviews.length, 1, "Gitea sends only X-Gitea-* headers");
+comment.comment.body = "/octopus review";
+await deliver(comment, { vendor: "gitea", event: "issue_comment" }); assert.equal(reviews.length, 2);
 console.log("Forgejo webhook checks passed");
 
 deliveries.clear(); reviews = []; admissionPending = true;

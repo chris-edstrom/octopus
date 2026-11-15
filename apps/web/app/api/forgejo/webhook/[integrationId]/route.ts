@@ -39,7 +39,9 @@ async function readBody(request: Request): Promise<Buffer> {
 
 export async function POST(request: Request, { params }: { params: Promise<{ integrationId: string }> }) {
   const { integrationId } = await params;
-  const signature = request.headers.get("x-forgejo-signature") ?? "";
+  // Gitea signs the same payload the same way but sends only X-Gitea-* headers;
+  // Forgejo sends both sets. Prefer the Forgejo name and fall back to Gitea.
+  const signature = request.headers.get("x-forgejo-signature") ?? request.headers.get("x-gitea-signature") ?? "";
   if (integrationId.length > 128 || !/^[a-f0-9]{64}$/i.test(signature)) {
     return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
   }
@@ -71,7 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ int
     return Response.json({ ok: true, ignored: true });
   }
 
-  const event = request.headers.get("x-forgejo-event");
+  const event = request.headers.get("x-forgejo-event") ?? request.headers.get("x-gitea-event");
   const titleChanged = event === "pull_request" && payload.action === "edited" && payload.changes?.title !== undefined;
   const automatic = event === "pull_request" && (["opened", "reopened", "synchronized"].includes(payload.action ?? "") || titleChanged);
   const merged = event === "pull_request" && payload.action === "closed";
