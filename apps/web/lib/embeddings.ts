@@ -4,16 +4,15 @@ import { logAiUsage } from "@/lib/ai-usage";
 import { getEmbedModel } from "@/lib/ai-client";
 import { isOrgOverSpendLimit } from "@/lib/cost";
 import { getEmbedConfig, type EmbedConfig } from "@/lib/embed-config";
+import { openAIEmbeddingClientOptions } from "@/lib/embed-openai-client";
 import { validateProviderUrl } from "@/lib/providers/url-validation";
-import { EmbeddingDimensionError, MissingEmbeddingKeyError, OllamaEmbeddingResponseError, OllamaEmbeddingUrlError } from "@/lib/embedding-error";
+import { EmbeddingDimensionError, OllamaEmbeddingResponseError, OllamaEmbeddingUrlError } from "@/lib/embedding-error";
 
 let openai: OpenAI | null = null;
 
-function getOpenAIClient(): OpenAI {
-  if (!openai) {
-    if (!process.env.OPENAI_API_KEY) throw new MissingEmbeddingKeyError();
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-  }
+function getOpenAIClient(config: EmbedConfig): OpenAI {
+  // The config is process-wide env, so one cached client is enough.
+  if (!openai) openai = new OpenAI(openAIEmbeddingClientOptions(config));
   return openai;
 }
 
@@ -84,7 +83,9 @@ export async function createEmbeddings(
   // below with an actionable message instead of a cryptic Qdrant 400. Hosters
   // who want per-org dims would need per-org collections — out of scope here.
   let model = baseConfig.model;
-  if (tracking?.organizationId && baseConfig.provider !== "ollama") {
+  // A custom embeddings endpoint serves the operator-chosen model only; an
+  // org- or platform-default OpenAI model id would not exist there.
+  if (tracking?.organizationId && baseConfig.provider !== "ollama" && !baseConfig.openaiBaseUrl) {
     const resolved = await getEmbedModel(tracking.organizationId, tracking.repositoryId);
     if (resolved) model = resolved;
   }
@@ -153,7 +154,7 @@ async function embedWithOpenAI(
   config: EmbedConfig,
   signal?: AbortSignal,
 ): Promise<{ vectors: number[][]; promptTokens: number }> {
-  const client = getOpenAIClient();
+  const client = getOpenAIClient(config);
   const vectors: number[][] = [];
   let promptTokens = 0;
 

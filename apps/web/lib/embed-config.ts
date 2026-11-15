@@ -26,6 +26,13 @@
  *                            per-org `Organization.ollamaBaseUrl` because
  *                            embedding is a system-level concern that runs
  *                            outside any org context (eg. docs indexing).
+ * `OCTOPUS_EMBED_BASE_URL`  — OpenAI-compatible embeddings endpoint used in
+ *                            place of api.openai.com when the provider is
+ *                            openai, eg. a LiteLLM proxy (`https://host/v1`).
+ *                            Authenticated with `OCTOPUS_EMBED_API_KEY`,
+ *                            falling back to `OPENAI_API_KEY`. Kept separate
+ *                            from the SDK's `OPENAI_BASE_URL` so chat models
+ *                            are not redirected with it.
  */
 
 export type EmbedProvider = "openai" | "ollama";
@@ -36,6 +43,8 @@ export interface EmbedConfig {
   dim: number;
   /** Only populated when provider === "ollama". */
   ollamaBaseUrl?: string;
+  /** Only populated when provider === "openai" and OCTOPUS_EMBED_BASE_URL is set. */
+  openaiBaseUrl?: string;
 }
 
 function defaultModel(provider: EmbedProvider): string {
@@ -77,6 +86,9 @@ export function getEmbedConfig(): EmbedConfig {
     config.ollamaBaseUrl =
       process.env.OCTOPUS_OLLAMA_BASE_URL?.trim().replace(/\/+$/, "") ||
       "http://localhost:11434";
+  } else {
+    const baseUrl = process.env.OCTOPUS_EMBED_BASE_URL?.trim().replace(/\/+$/, "");
+    if (baseUrl) config.openaiBaseUrl = baseUrl;
   }
   return config;
 }

@@ -258,6 +258,15 @@ docker compose exec ollama ollama pull nomic-embed-text`}</CodeBlock>
           CPU-only by default; see the overlay file for enabling NVIDIA GPU
           acceleration.
         </Paragraph>
+        <Paragraph>
+          To send embeddings to an OpenAI-compatible endpoint instead (for
+          example a LiteLLM proxy), keep{" "}
+          <Mono>OCTOPUS_EMBED_PROVIDER=openai</Mono> and set{" "}
+          <Mono>OCTOPUS_EMBED_BASE_URL</Mono> (including <Mono>/v1</Mono>),{" "}
+          <Mono>OCTOPUS_EMBED_API_KEY</Mono>,{" "}
+          <Mono>OCTOPUS_EMBED_MODEL</Mono> and <Mono>OCTOPUS_EMBED_DIM</Mono>{" "}
+          to match what the endpoint serves. Chat models are not affected.
+        </Paragraph>
       </Section>
 
       {/* Environment variables */}
