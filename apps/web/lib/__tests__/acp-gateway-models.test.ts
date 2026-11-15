@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, mock } from "bun:test";
+import { fileURLToPath } from "node:url";
 
 let org: { acpBaseUrl: string | null; acpApiKey: string | null } | null = null;
 mock.module("server-only", () => ({}));
@@ -93,4 +94,13 @@ it("caps the number of listed models", async () => {
   respond(() => Response.json({ data: Array.from({ length: 600 }, (_, i) => ({ id: `m${i}` })) }));
   const result = await listGatewayModels(null);
   expect(result.status === "ok" && result.models.length).toBe(500);
+});
+
+it("serves the model list to organization admins only", async () => {
+  const child = Bun.spawn([process.execPath, fileURLToPath(new URL("./fixtures/acp-models-route.ts", import.meta.url))], {
+    stdout: "pipe", stderr: "pipe",
+  });
+  const [code, output, error] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+  expect(code, error).toBe(0);
+  expect(output.trim()).toBe("acp models route checks passed");
 });
