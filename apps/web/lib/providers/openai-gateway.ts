@@ -3,6 +3,8 @@ import { observeAiRequest, completionEvidence, sdkRequestOptions } from "./reque
 import OpenAI from "openai";
 import type { AiCreateParams, AiResponse, AiProvider } from "./index";
 import { stripLoneSurrogates } from "./sanitize";
+import { CACHE_BREAKPOINT } from "./system-cache";
+import { cacheWrites } from "./openai";
 
 /**
  * Shared implementation for OpenAI-compatible gateway providers (acp, opencode,
@@ -35,7 +37,10 @@ export async function callOpenAiGateway(
   const client = new OpenAI({ apiKey: opts.apiKey, baseURL });
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-  if (params.system) messages.push({ role: "system", content: stripLoneSurrogates(params.system) });
+  // The breakpoint marker is an Anthropic-adapter instruction, not prompt text.
+  // Gateways get no cache hint from it, so drop it instead of sending it to the model.
+  const system = params.system?.split(CACHE_BREAKPOINT).join("");
+  if (system) messages.push({ role: "system", content: stripLoneSurrogates(system) });
   for (const m of params.messages) messages.push({ role: m.role, content: stripLoneSurrogates(m.content) });
 
   const model = params.model.startsWith(opts.modelPrefix)
@@ -78,7 +83,8 @@ export async function callOpenAiGateway(
       inputTokens: response.usage?.prompt_tokens ?? 0,
       outputTokens: response.usage?.completion_tokens ?? 0,
       cacheReadTokens: response.usage?.prompt_tokens_details?.cached_tokens ?? 0,
-      cacheWriteTokens: 0,
+      // Gateways fronting Anthropic or newer OpenAI models report prefix writes here.
+      cacheWriteTokens: cacheWrites(response.usage?.prompt_tokens_details),
     },
   };
 }

@@ -22,7 +22,7 @@ process.env.OCTOPUS_EMBED_MODEL = "text-embedding-3-large";
 process.env.OCTOPUS_EMBED_DIM = "3";
 for (const key of ["OPENAI_BASE_URL", "DASHSCOPE_BASE_URL", "XAI_API_KEY"]) delete process.env[key];
 
-type Body = { input?: string[]; encoding_format?: string; dimensions?: number; stream?: boolean; stream_options?: unknown };
+type Body = { messages?: { role: string; content: string }[]; input?: string[]; encoding_format?: string; dimensions?: number; stream?: boolean; stream_options?: unknown };
 type Hit = { path: string; authorization: string | null; body: Body };
 let hits: Hit[] = [];
 let urls: string[] = [];
@@ -118,6 +118,14 @@ try {
       assertSafe(error, provider, status, key);
     }
   }
+
+  // Gateways receive the prompt without the Anthropic cache marker and report prefix writes.
+  reset(() => Response.json({ choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 7, completion_tokens: 3, prompt_tokens_details: { cached_tokens: 0, cache_write_tokens: 4 } } }));
+  const marked = await callOpenAiGateway({ ...params, model: "acp:synthetic-model", system: "stable<!--CACHE_BREAKPOINT-->volatile", cacheSystem: true },
+    { name: "acp", modelPrefix: "acp:", baseUrl: "http://gateway.invalid", apiKey: KEYS.gateway });
+  assert.deepEqual(hits[0].body.messages?.[0], { role: "system", content: "stablevolatile" });
+  assert.deepEqual(marked.usage, { inputTokens: 7, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 4 });
 
   const vector = [0.25, -0.5, 1];
   const base64 = Buffer.from(new Float32Array(vector).buffer).toString("base64");

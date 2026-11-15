@@ -33,7 +33,7 @@ function promptCacheKey(params: AiCreateParams, apiKey: string | undefined, orgI
 }
 
 // Newer OpenAI models report writes even though the installed SDK predates the field.
-function cacheWrites(details: { cached_tokens?: number } | null | undefined): number {
+export function cacheWrites(details: { cached_tokens?: number } | null | undefined): number {
   const value = (details as { cache_write_tokens?: unknown } | null | undefined)?.cache_write_tokens;
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
