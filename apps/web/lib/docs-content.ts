@@ -420,6 +420,7 @@ The self-host compose file includes PostgreSQL and Qdrant containers.`,
         heading: "Environment Variables",
         text: `Configure DATABASE_URL, QDRANT_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, and your embedding/review AI services. GitHub App credentials are needed only when connecting GitHub repositories. For a direct Forgejo connection, enter the instance URL and token in Settings > Integrations and add repository webhooks. Self-hosted Octopus can reach private Forgejo through FORGEJO_ALLOWED_PRIVATE_ORIGINS configured on both web and review workers. Cloud users with private Forgejo instead use the local connector described at /docs/integrations#forgejo-cloud-private.
 Optional: GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET (for GitHub login), COHERE_API_KEY (for re-ranking), GOOGLE_API_KEY (Gemini models), STRIPE_SECRET_KEY (for billing).
+LiteLLM and other OpenAI-compatible gateways: set ACP_BASE_URL (an origin; any path is dropped) and ACP_API_KEY, or set both per organization in Settings > Provider Keys, then choose a model id in Settings > Models. Gateway models are stored as acp:<model>. Most gateways do not serve embeddings, so indexing still needs OpenAI or Ollama.
 The self-hosting docs page includes an interactive env generator.`,
       },
       {

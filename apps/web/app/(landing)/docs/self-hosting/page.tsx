@@ -303,7 +303,7 @@ docker compose exec ollama ollama pull nomic-embed-text`}</CodeBlock>
           <EnvVar name="DASHSCOPE_API_KEY" example="sk-..." description="Alibaba Cloud Model Studio (Qwen) models" />
           <EnvVar name="DASHSCOPE_BASE_URL" example="https://dashscope.aliyuncs.com/compatible-mode/v1" description="Optional: DashScope endpoint override (default is the international endpoint; set the China endpoint here)" />
           <EnvVar name="OLLAMA_SERVER_URL" example="http://localhost:11434" description="Self-hosted Ollama (ollama: model ids); optional OLLAMA_USERNAME / OLLAMA_PASSWORD for a proxied host" />
-          <EnvVar name="ACP_BASE_URL" example="https://acpx.example.com" description="ACPX gateway (acp: model ids); set together with ACP_API_KEY" />
+          <EnvVar name="ACP_BASE_URL" example="https://acpx.example.com" description="ACPX or any OpenAI-compatible gateway such as LiteLLM (acp: model ids); origin only, set together with ACP_API_KEY" />
           <EnvVar name="OPENCODE_BASE_URL" example="https://opencode.example.com" description="OpenCode gateway (opencode: model ids); set together with OPENCODE_API_KEY" />
           <EnvVar name="QDRANT_API_KEY" example="your-qdrant-api-key" description="If Qdrant auth is enabled" />
           <EnvVar name="FORGEJO_ALLOWED_PRIVATE_ORIGINS" example="" description="Comma-separated exact HTTPS origins for private Forgejo instances. Self-hosted only: use the official self-host image or OCTOPUS_SELF_HOSTED=true at runtime. Configure on web and review workers." />
@@ -311,6 +311,39 @@ docker compose exec ollama ollama pull nomic-embed-text`}</CodeBlock>
           <EnvVar name="COHERE_API_KEY" example="..." description="For reranking search results" />
           <EnvVar name="STRIPE_SECRET_KEY" example="sk_..." description="For billing" />
         </EnvGroup>
+      </Section>
+
+      <Section id="openai-compatible-gateway" title="LiteLLM and other OpenAI-compatible gateways">
+        <Paragraph>
+          Reviews and chat can run through any endpoint that serves the OpenAI{" "}
+          <Mono>/v1/chat/completions</Mono> API: LiteLLM, CLIProxyAPI, vLLM, LM
+          Studio and similar. Set the gateway for the whole deployment:
+        </Paragraph>
+        <CodeBlock>{`ACP_BASE_URL=http://host.docker.internal:4000
+ACP_API_KEY=your-gateway-key`}</CodeBlock>
+        <Paragraph>
+          Or set it per organization in <Mono>Settings &rarr; Provider Keys</Mono>,
+          which overrides the environment values. Then pick a model in{" "}
+          <Mono>Settings &rarr; Models</Mono>: enter the id your gateway uses
+          (for example <Mono>claude-sonnet-4-6</Mono>). Octopus stores it as{" "}
+          <Mono>acp:claude-sonnet-4-6</Mono> and sends the id without the prefix.
+        </Paragraph>
+        <ul className="mb-4 list-inside list-disc space-y-2 text-sm text-[#888]">
+          <li>
+            The base URL must be an origin (scheme, host, port). Any path is
+            dropped, so <Mono>https://gateway.example.com/proxy</Mono> is called
+            as <Mono>https://gateway.example.com/v1/chat/completions</Mono>.
+          </li>
+          <li>
+            Most gateways do not serve embeddings. Indexing still needs{" "}
+            <Mono>OPENAI_API_KEY</Mono> or Ollama embeddings.
+          </li>
+          <li>
+            The model list in Settings comes from the gateway&apos;s{" "}
+            <Mono>/v1/models</Mono>. A gateway without that endpoint still
+            works; type the model id.
+          </li>
+        </ul>
       </Section>
 
       {/* Database setup */}
