@@ -57,7 +57,8 @@ export async function POST(
     );
   }
 
-  if (await isOrgOverSpendLimit(result.org.id)) {
+  const modelOverride = typeof model === "string" && model ? model : undefined;
+  if (await isOrgOverSpendLimit(result.org.id, repo.id, modelOverride)) {
     return Response.json({ error: "Monthly spend limit reached" }, { status: 402 });
   }
 
@@ -72,7 +73,7 @@ export async function POST(
         title: typeof title === "string" ? title : undefined,
         author: typeof author === "string" ? author : undefined,
         fileTree: Array.isArray(fileTree) ? fileTree : undefined,
-        modelOverride: typeof model === "string" ? model : undefined,
+        modelOverride,
       });
 
       // Audit each CLI review (mirrors /api/cli/review-local). Powers

@@ -283,8 +283,24 @@ export async function getOrgSpendLimitStatus(
   return { blocked: false };
 }
 
-export async function isOrgOverSpendLimit(orgId: string, repoId?: string): Promise<boolean> {
-  const status = await getOrgSpendLimitStatus(orgId, repoId);
+/**
+ * `modelOverride` is the explicit per-request model a caller will review with
+ * (eg. `octp review --model`). It wins over the repo/org default in
+ * resolveReviewModel, so the gate must judge that model: an unbilled gateway or
+ * BYOK override is not credit-gated, and a platform-billed override is gated
+ * even when the org default is not.
+ */
+export async function isOrgOverSpendLimit(orgId: string, repoId?: string, modelOverride?: string): Promise<boolean> {
+  let route: { model: string; provider: import("./providers").AiProvider } | undefined;
+  if (modelOverride) {
+    try {
+      const { getProviderForModel } = await import("@/lib/ai-router");
+      route = { model: modelOverride, provider: await getProviderForModel(modelOverride) };
+    } catch {
+      // Unresolvable override: fall through to the default-model gate.
+    }
+  }
+  const status = await getOrgSpendLimitStatus(orgId, repoId, route);
   return status.blocked;
 }
 

@@ -60,13 +60,13 @@ mock.module("@/lib/ai-client", () => ({
   getReviewModel: mock(async () => "claude-opus-4-8"),
 }));
 mock.module("@/lib/ai-router", () => ({
-  getProviderForModel: mock(async () => {
+  getProviderForModel: mock(async (model: string) => {
     if (providerThrows) throw new Error("provider resolution boom");
-    return provider;
+    return model.startsWith("acp:") ? "acp" : provider;
   }),
 }));
 
-const { getOrgMonthlySpend, getOrgSpendLimitStatus } = await import("@/lib/cost");
+const { getOrgMonthlySpend, getOrgSpendLimitStatus, isOrgOverSpendLimit } = await import("@/lib/cost");
 
 beforeEach(() => {
   org = baseOrg();
@@ -74,6 +74,29 @@ beforeEach(() => {
   providerThrows = false;
   usageDebitTotal = null;
   creditTransactionAggregate.mockClear();
+});
+
+describe("isOrgOverSpendLimit — per-request model override", () => {
+  it("judges the override, not the org default", async () => {
+    org = baseOrg({ creditBalance: 0, freeCreditBalance: 0 });
+    provider = "anthropic"; // org default is platform-billed
+    expect(await isOrgOverSpendLimit("o")).toBe(true);
+    expect(await isOrgOverSpendLimit("o", undefined, "acp:claude-sonnet-4-6")).toBe(false);
+  });
+
+  it("still gates a platform-billed override when the default is unbilled", async () => {
+    org = baseOrg({ creditBalance: 0, freeCreditBalance: 0 });
+    provider = "ollama";
+    expect(await isOrgOverSpendLimit("o")).toBe(false);
+    provider = "anthropic";
+    expect(await isOrgOverSpendLimit("o", undefined, "claude-opus-4-8")).toBe(true);
+  });
+
+  it("falls back to the default-model gate when the override cannot be resolved", async () => {
+    org = baseOrg({ creditBalance: 0, freeCreditBalance: 0 });
+    providerThrows = true;
+    expect(await isOrgOverSpendLimit("o", undefined, "acp:anything")).toBe(true);
+  });
 });
 
 describe("getOrgSpendLimitStatus — BYOK admission (B4)", () => {

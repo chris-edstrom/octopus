@@ -11,7 +11,8 @@ const review = async () => {
   return { findings: [], summary: "ok", model: "synthetic", usage: {} };
 };
 mock.module("@/lib/api-auth", () => ({ authenticateApiToken: async () => ({ org: { id: "org" }, user: null }) }));
-mock.module("@/lib/cost", () => ({ isOrgOverSpendLimit: async () => false }));
+const gateCalls: unknown[][] = [];
+mock.module("@/lib/cost", () => ({ isOrgOverSpendLimit: async (...args: unknown[]) => { gateCalls.push(args); return false; } }));
 mock.module("@/lib/audit", () => ({ writeAuditLog: async () => {} }));
 mock.module("@/lib/external-review-activity", () => ({ withExternalReviewActivity: async (_input: unknown, fn: () => Promise<Response>) => fn() }));
 mock.module("@/lib/review-core", () => ({ ReviewConfigError, generateLocalReview: review, generateBareLocalReview: review }));
@@ -101,3 +102,16 @@ for (const call of calls) {
 }
 repositoryExists = false;
 assert.equal((await calls[1]()).status, 404);
+
+// The spend gate judges the model the request asks for, and the repo-aware route names its repository.
+repositoryExists = true;
+failure = null;
+const withModel = (url: string) => new NextRequest(url, { method: "POST", body: JSON.stringify({ diff: "+test", model: "acp:synthetic" }) });
+gateCalls.length = 0;
+assert.equal((await bare.POST(withModel("http://localhost/api/cli/review-local"))).status, 200);
+assert.equal((await contextual.POST(withModel("http://localhost/api/cli/repos/repo/local-review"), { params: Promise.resolve({ id: "repo" }) })).status, 200);
+for (const call of calls) assert.equal((await call()).status, 200);
+assert.deepEqual(gateCalls, [
+  ["org", undefined, "acp:synthetic"], ["org", "repo", "acp:synthetic"],
+  ["org", undefined, undefined], ["org", "repo", undefined],
+]);

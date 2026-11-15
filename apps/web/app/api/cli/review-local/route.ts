@@ -50,11 +50,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (await isOrgOverSpendLimit(auth.org.id)) {
+  const body = (await request.json().catch(() => ({}))) as Body;
+  const modelOverride = typeof body.model === "string" && body.model ? body.model : undefined;
+
+  if (await isOrgOverSpendLimit(auth.org.id, undefined, modelOverride)) {
     return NextResponse.json({ error: "Monthly spend limit reached" }, { status: 402 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as Body;
   if (typeof body.diff !== "string" || body.diff.length === 0) {
     return NextResponse.json({ error: "diff is required" }, { status: 400 });
   }
@@ -75,7 +77,7 @@ export async function POST(request: Request) {
         orgId: auth.org.id,
         title: body.title,
         author: body.author,
-        modelOverride: typeof body.model === "string" ? body.model : undefined,
+        modelOverride,
       });
 
       // Audit each CLI review so admins have visibility into who's running
