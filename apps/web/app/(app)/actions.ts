@@ -370,7 +370,8 @@ export async function updateApiKeys(
       continue;
     }
     try {
-      data[field] = validateProviderUrl(trimmed);
+      // Gateways may live under a sub-path; Ollama is addressed by origin.
+      data[field] = validateProviderUrl(trimmed, { keepPath: field !== "ollamaBaseUrl" });
     } catch (err) {
       return { error: err instanceof Error ? err.message : "Invalid provider URL." };
     }

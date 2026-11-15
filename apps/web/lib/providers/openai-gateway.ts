@@ -11,7 +11,8 @@ import { stripLoneSurrogates } from "./sanitize";
  * supplied). SSRF validation is applied by the caller's resolve path — only to
  * the per-org (user-supplied) URL, since env-configured gateways are operator-
  * controlled and may legitimately live on internal hosts. The baseUrl passed in
- * here is therefore already a validated, path-stripped origin.
+ * here is therefore already validated: an origin, optionally followed by a
+ * path prefix for gateways served under a sub-path.
  *
  * Caller supplies the provider name, the model-id namespace prefix to strip
  * (e.g. "acp:"), the gateway base URL, and the bearer token.
@@ -23,15 +24,23 @@ export type GatewayCallOptions = {
   apiKey: string;
 };
 
+/**
+ * The gateway's OpenAI API root: `<origin>[/prefix]/v1`. A base URL pasted with
+ * the conventional trailing `/v1` is used as-is.
+ */
+export function gatewayApiBase(baseUrl: string): string {
+  return baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
+}
+
 export async function callOpenAiGateway(
   params: AiCreateParams,
   opts: GatewayCallOptions,
 ): Promise<AiResponse> {
   // Not cached across calls: with per-org config the base URL + token vary by
   // org, so a per-provider client singleton would leak one org's gateway/token
-  // to another. opts.baseUrl is already a validated origin (path/query stripped
-  // by the resolve path), so the SDK builds `<origin>/v1/chat/completions`.
-  const baseURL = `${opts.baseUrl}/v1`;
+  // to another. opts.baseUrl is already validated (query stripped by the resolve
+  // path), so the SDK builds `<origin>[/prefix]/v1/chat/completions`.
+  const baseURL = gatewayApiBase(opts.baseUrl);
   const client = new OpenAI({ apiKey: opts.apiKey, baseURL });
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];

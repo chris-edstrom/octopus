@@ -134,6 +134,14 @@ try {
   assert.deepEqual(await createEmbeddings(["a", "b", "c", "d"]), [vector, vector, vector, vector]);
   assert.deepEqual(hits.map(hit => hit.body.input!.length), [4, 2, 1, 1, 2, 1, 1]);
 
+  // Gateways under a sub-path, and base URLs pasted with a trailing /v1.
+  for (const [baseUrl, url] of [["http://gateway.invalid/litellm", "http://gateway.invalid/litellm/v1/chat/completions"],
+    ["http://gateway.invalid/v1", "http://gateway.invalid/v1/chat/completions"]]) {
+    reset(success);
+    await callOpenAiGateway({ ...params, model: "acp:synthetic-model" }, { name: "acp", modelPrefix: "acp:", baseUrl, apiKey: KEYS.gateway });
+    assert.deepEqual(urls, [url]);
+  }
+
   reset(failure(401));
   let error: unknown;
   try { await createEmbeddings(["a", "b"]); } catch (caught) { error = caught; }

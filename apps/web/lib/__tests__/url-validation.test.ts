@@ -2,6 +2,32 @@ import { describe, it, expect } from "bun:test";
 import { validateProviderUrl } from "@/lib/providers/url-validation";
 
 describe("validateProviderUrl", () => {
+  describe("keepPath", () => {
+    it("keeps a path prefix and drops query, fragment, credentials and trailing slashes", () => {
+      expect(validateProviderUrl("https://tools.example.com/litellm/?key=1#x", { hosted: true, keepPath: true })).toBe(
+        "https://tools.example.com/litellm",
+      );
+      expect(validateProviderUrl("https://user:secret@tools.example.com/a/b//", { hosted: true, keepPath: true })).toBe(
+        "https://tools.example.com/a/b",
+      );
+      expect(validateProviderUrl("https://tools.example.com/", { hosted: true, keepPath: true })).toBe("https://tools.example.com");
+    });
+
+    it("resolves dot segments before keeping the prefix", () => {
+      expect(validateProviderUrl("https://tools.example.com/a/../../b", { hosted: true, keepPath: true })).toBe(
+        "https://tools.example.com/b",
+      );
+    });
+
+    it("still applies the host checks", () => {
+      expect(() => validateProviderUrl("http://169.254.169.254/latest", { hosted: true, keepPath: true })).toThrow(/private/);
+    });
+
+    it("stays origin-only by default", () => {
+      expect(validateProviderUrl("https://tools.example.com/litellm", { hosted: true })).toBe("https://tools.example.com");
+    });
+  });
+
   describe("syntactic validation", () => {
     it("rejects empty input", () => {
       expect(() => validateProviderUrl("", { hosted: false })).toThrow(/empty/);

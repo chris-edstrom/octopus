@@ -4,7 +4,7 @@ import { prisma } from "@octopus/db";
 import { decryptStringMaybeLegacy } from "@/lib/crypto";
 import { readBoundedJson } from "@/lib/bounded-json";
 import type { Provider, AiCreateParams, AiResponse } from "./index";
-import { callOpenAiGateway } from "./openai-gateway";
+import { callOpenAiGateway, gatewayApiBase } from "./openai-gateway";
 import { validateProviderUrl } from "./url-validation";
 
 /**
@@ -29,12 +29,12 @@ async function resolveConfig(orgId?: string | null): Promise<{ baseUrl: string; 
       select: { acpBaseUrl: true, acpApiKey: true },
     });
     if (org?.acpBaseUrl && org?.acpApiKey) {
-      return { baseUrl: validateProviderUrl(org.acpBaseUrl), apiKey: decryptStringMaybeLegacy(org.acpApiKey), keyOwner: "organization" };
+      return { baseUrl: validateProviderUrl(org.acpBaseUrl, { keepPath: true }), apiKey: decryptStringMaybeLegacy(org.acpApiKey), keyOwner: "organization" };
     }
   }
   const envBase = process.env.ACP_BASE_URL;
   const envKey = process.env.ACP_API_KEY;
-  if (envBase && envKey) return { baseUrl: validateProviderUrl(envBase, { hosted: false }), apiKey: envKey, keyOwner: "platform" };
+  if (envBase && envKey) return { baseUrl: validateProviderUrl(envBase, { hosted: false, keepPath: true }), apiKey: envKey, keyOwner: "platform" };
   return null;
 }
 
@@ -78,7 +78,7 @@ export type GatewayModelList =
   | { status: "ok"; models: string[] };
 
 /**
- * Model ids served by the gateway (`GET <origin>/v1/models`), for the Settings
+ * Model ids served by the gateway (`GET <origin>[/prefix]/v1/models`), for the Settings
  * model picker. Resolves the gateway through the same path as reviews, so the
  * per-org URL gets the same SSRF validation and the API key stays server-side.
  * Many gateways do not serve /v1/models; any failure (rejected URL, timeout,
@@ -90,7 +90,7 @@ export async function listGatewayModels(orgId?: string | null): Promise<GatewayM
   try {
     const config = await resolveConfig(orgId);
     if (!config) return { status: "unconfigured" };
-    const res = await fetch(`${config.baseUrl}/v1/models`, {
+    const res = await fetch(`${gatewayApiBase(config.baseUrl)}/models`, {
       headers: { Authorization: `Bearer ${config.apiKey}` },
       redirect: "error",
       signal: AbortSignal.timeout(MODEL_LIST_TIMEOUT_MS),

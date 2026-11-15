@@ -28,12 +28,12 @@ async function resolveConfig(orgId?: string | null): Promise<{ baseUrl: string; 
       select: { opencodeBaseUrl: true, opencodeApiKey: true },
     });
     if (org?.opencodeBaseUrl && org?.opencodeApiKey) {
-      return { baseUrl: validateProviderUrl(org.opencodeBaseUrl), apiKey: decryptStringMaybeLegacy(org.opencodeApiKey), keyOwner: "organization" };
+      return { baseUrl: validateProviderUrl(org.opencodeBaseUrl, { keepPath: true }), apiKey: decryptStringMaybeLegacy(org.opencodeApiKey), keyOwner: "organization" };
     }
   }
   const envBase = process.env.OPENCODE_BASE_URL;
   const envKey = process.env.OPENCODE_API_KEY;
-  if (envBase && envKey) return { baseUrl: validateProviderUrl(envBase, { hosted: false }), apiKey: envKey, keyOwner: "platform" };
+  if (envBase && envKey) return { baseUrl: validateProviderUrl(envBase, { hosted: false, keepPath: true }), apiKey: envKey, keyOwner: "platform" };
   return null;
 }
 

@@ -92,8 +92,8 @@ export function GatewayForm({
               autoComplete="off"
             />
             <p className="text-xs text-muted-foreground">
-              Origin only (scheme, host, port). Any path is dropped; requests go
-              to <code className="rounded bg-muted px-1 py-0.5">/v1/chat/completions</code>.
+              An origin, optionally with a path prefix. Requests go to{" "}
+              <code className="rounded bg-muted px-1 py-0.5">/v1/chat/completions</code> under it.
             </p>
           </div>
 

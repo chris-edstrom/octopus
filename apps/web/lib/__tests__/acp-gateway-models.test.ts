@@ -37,14 +37,14 @@ it("reports an unconfigured gateway without calling out", async () => {
   expect(calls).toEqual([]);
 });
 
-it("lists env-gateway models from the origin's /v1/models and returns ids only", async () => {
+it("lists env-gateway models from /v1/models under the base URL and returns ids only", async () => {
   process.env.ACP_BASE_URL = "http://localhost:4000/some/path?x=1";
   process.env.ACP_API_KEY = "env-secret";
   respond(() => Response.json({ object: "list", data: [{ id: "gpt-5.5" }, { id: "claude-sonnet-4-6", owned_by: "x" }, { id: "gpt-5.5" }, { id: 7 }, {}, null, { id: "x".repeat(201) }] }));
   const result = await listGatewayModels(null);
   expect(result).toEqual({ status: "ok", models: ["claude-sonnet-4-6", "gpt-5.5"] });
   expect(calls).toHaveLength(1);
-  expect(calls[0]!.url).toBe("http://localhost:4000/v1/models");
+  expect(calls[0]!.url).toBe("http://localhost:4000/some/path/v1/models");
   expect(new Headers(calls[0]!.init?.headers).get("authorization")).toBe("Bearer env-secret");
   expect(calls[0]!.init?.redirect).toBe("error");
   expect(calls[0]!.init?.signal).toBeInstanceOf(AbortSignal);

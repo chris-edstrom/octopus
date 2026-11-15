@@ -28,6 +28,13 @@ export type UrlValidationOptions = {
    * by default and self-hosted users can point at localhost / 10.x / 192.168.x.
    */
   hosted?: boolean;
+  /**
+   * Keep the URL path as a prefix (query and fragment are still dropped). For
+   * OpenAI-compatible gateways served under a sub-path, eg. a LiteLLM proxy at
+   * `https://tools.example.com/litellm`. Off by default: providers that build
+   * absolute paths themselves expect a bare origin.
+   */
+  keepPath?: boolean;
 };
 
 // Patterns run against the WHATWG-canonicalized hostname (brackets stripped),
@@ -64,7 +71,8 @@ function canonicalHost(parsed: URL): string {
 /**
  * Validate and normalize a provider base URL. Returns the canonical origin
  * (scheme + host + port) with any path / query / fragment stripped and
- * trailing slashes removed. Throws on rejection.
+ * trailing slashes removed. With `keepPath` the normalized path is kept as a
+ * prefix. Credentials in the URL are never returned. Throws on rejection.
  */
 export function validateProviderUrl(
   raw: string,
@@ -98,5 +106,8 @@ export function validateProviderUrl(
   }
 
   // Return origin only — drop any path / query / fragment that came in.
-  return parsed.origin;
+  if (!options.keepPath) return parsed.origin;
+  // `URL` has already resolved dot segments, so the prefix cannot climb out of
+  // the host; the host checks above apply to the whole URL.
+  return parsed.origin + parsed.pathname.replace(/\/+$/, "");
 }

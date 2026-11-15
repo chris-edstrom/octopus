@@ -303,7 +303,7 @@ docker compose exec ollama ollama pull nomic-embed-text`}</CodeBlock>
           <EnvVar name="DASHSCOPE_API_KEY" example="sk-..." description="Alibaba Cloud Model Studio (Qwen) models" />
           <EnvVar name="DASHSCOPE_BASE_URL" example="https://dashscope.aliyuncs.com/compatible-mode/v1" description="Optional: DashScope endpoint override (default is the international endpoint; set the China endpoint here)" />
           <EnvVar name="OLLAMA_SERVER_URL" example="http://localhost:11434" description="Self-hosted Ollama (ollama: model ids); optional OLLAMA_USERNAME / OLLAMA_PASSWORD for a proxied host" />
-          <EnvVar name="ACP_BASE_URL" example="https://acpx.example.com" description="ACPX or any OpenAI-compatible gateway such as LiteLLM (acp: model ids); origin only, set together with ACP_API_KEY" />
+          <EnvVar name="ACP_BASE_URL" example="https://acpx.example.com" description="ACPX or any OpenAI-compatible gateway such as LiteLLM (acp: model ids); a path prefix is kept, set together with ACP_API_KEY" />
           <EnvVar name="OPENCODE_BASE_URL" example="https://opencode.example.com" description="OpenCode gateway (opencode: model ids); set together with OPENCODE_API_KEY" />
           <EnvVar name="QDRANT_API_KEY" example="your-qdrant-api-key" description="If Qdrant auth is enabled" />
           <EnvVar name="FORGEJO_ALLOWED_PRIVATE_ORIGINS" example="" description="Comma-separated exact HTTPS origins for private Forgejo instances. Self-hosted only: use the official self-host image or OCTOPUS_SELF_HOSTED=true at runtime. Configure on web and review workers." />
@@ -330,9 +330,10 @@ ACP_API_KEY=your-gateway-key`}</CodeBlock>
         </Paragraph>
         <ul className="mb-4 list-inside list-disc space-y-2 text-sm text-[#888]">
           <li>
-            The base URL must be an origin (scheme, host, port). Any path is
-            dropped, so <Mono>https://gateway.example.com/proxy</Mono> is called
-            as <Mono>https://gateway.example.com/v1/chat/completions</Mono>.
+            The base URL is an origin with an optional path prefix, so{" "}
+            <Mono>https://gateway.example.com/proxy</Mono> is called as{" "}
+            <Mono>https://gateway.example.com/proxy/v1/chat/completions</Mono>.
+            A trailing <Mono>/v1</Mono> is accepted and not repeated.
           </li>
           <li>
             Most gateways do not serve embeddings. Indexing still needs{" "}

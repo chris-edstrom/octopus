@@ -192,4 +192,16 @@ assert.equal((await tokens.deleteApiToken(form({ tokenId: "token_1" }))).error, 
 writes.length = 0;
 assert.ok((await tokens.deleteApiToken(form({ tokenId: "other_token" }))).error);
 assert.deepEqual(writes, []);
+// Gateway base URLs keep a path prefix; Ollama is still stored as a bare origin.
+signedIn = true; held = false; role = "owner"; orgId = "org_1";
+writes.length = 0;
+assert.equal((await actions.updateApiKeys({}, form({
+  acpBaseUrl: "https://tools.example.com/litellm/?key=1", opencodeBaseUrl: "https://tools.example.com/v1", ollamaBaseUrl: "https://ollama.example.com/api",
+}))).error, undefined);
+assert.deepEqual(writes.at(-1)?.data, {
+  acpBaseUrl: "https://tools.example.com/litellm", opencodeBaseUrl: "https://tools.example.com/v1", ollamaBaseUrl: "https://ollama.example.com",
+});
+writes.length = 0;
+assert.match((await actions.updateApiKeys({}, form({ acpBaseUrl: "https://169.254.169.254/latest" }))).error ?? "", /private/);
+assert.deepEqual(writes, []);
 console.log("input validation checks passed");
