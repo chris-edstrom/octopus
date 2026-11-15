@@ -62,6 +62,8 @@ type ReviewResponse = {
   usage: { inputTokens: number; outputTokens: number };
   /** Server flag — true when the bare (no-repo-context) path was used. */
   bareMode?: boolean;
+  /** Server flag — true when the model stopped before finishing its answer. */
+  outputIncomplete?: boolean;
 };
 
 type RepoMatch = { id: string; fullName: string; provider: string };
@@ -589,6 +591,11 @@ function renderHuman(data: RenderedData, repoFullName: string): void {
       `${COLOR.yellow}⚠ diff truncated to ${(MAX_DIFF_BYTES / 1024).toFixed(0)} KB — findings may be incomplete${COLOR.reset}`,
     );
   }
+  if (data.outputIncomplete) {
+    console.log(
+      `${COLOR.yellow}⚠ the model stopped before finishing its answer — findings may be incomplete${COLOR.reset}`,
+    );
+  }
   if (findings.length === 0) {
     console.log(`${COLOR.green}✓ no findings${COLOR.reset}`);
     return;
@@ -627,6 +634,7 @@ function renderMarkdown(data: RenderedData): string {
   lines.push("");
   lines.push(`Model: \`${sanitizeTerminal(data.model)}\``);
   if (data.truncated) lines.push(`> ⚠ diff was truncated — findings may be incomplete`);
+  if (data.outputIncomplete) lines.push(`> ⚠ the model stopped before finishing its answer — findings may be incomplete`);
   if (data.summary) {
     lines.push("");
     lines.push(sanitizeTerminal(data.summary));

@@ -106,6 +106,7 @@ export async function POST(request: Request) {
         model: result.model,
         usage: result.usage,
         bareMode: true,
+        ...(result.outputIncomplete ? { outputIncomplete: true } : {}),
       });
     } catch (err) {
       console.error("[review-local] Review generation failed:", safeErrorDetails(err instanceof AiProviderFailure

@@ -73,6 +73,13 @@ export type LocalReviewResult = {
     inputTokens: number;
     outputTokens: number;
   };
+  /**
+   * Set when the provider reported that it stopped before finishing (eg.
+   * finish_reason "length"). The parsed findings are then a prefix of what the
+   * model would have reported, so callers must not present them as complete.
+   * Absent when the provider finished or gave no completion evidence.
+   */
+  outputIncomplete?: true;
 };
 
 // ─── System prompt loading (shared with reviewer.ts) ─────────────────────────
@@ -578,6 +585,7 @@ Rules:
       inputTokens: response.usage.inputTokens,
       outputTokens: response.usage.outputTokens,
     },
+    ...(response.completion?.state === "incomplete" ? { outputIncomplete: true } : {}),
   };
 }
 
@@ -832,5 +840,6 @@ export async function generateBareLocalReview(
       inputTokens: response.usage.inputTokens,
       outputTokens: response.usage.outputTokens,
     },
+    ...(response.completion?.state === "incomplete" ? { outputIncomplete: true } : {}),
   };
 }

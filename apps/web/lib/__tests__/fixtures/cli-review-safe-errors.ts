@@ -5,10 +5,11 @@ import { inspect } from "node:util";
 mock.module("server-only", () => ({}));
 let failure: unknown = new Error("synthetic-provider-secret");
 let repositoryExists = true;
+let outputIncomplete = false;
 class ReviewConfigError extends Error {}
 const review = async () => {
   if (failure !== null) throw failure;
-  return { findings: [], summary: "ok", model: "synthetic", usage: {} };
+  return { findings: [], summary: "ok", model: "synthetic", usage: {}, ...(outputIncomplete ? { outputIncomplete: true as const } : {}) };
 };
 mock.module("@/lib/api-auth", () => ({ authenticateApiToken: async () => ({ org: { id: "org" }, user: null }) }));
 mock.module("@/lib/cost", () => ({ isOrgOverSpendLimit: async () => false }));
@@ -97,7 +98,13 @@ for (const call of calls) {
   assert.equal(response.status, 422);
   assert.deepEqual(await response.json(), { error: "Safe configuration advice" });
   failure = null;
-  assert.equal((await call()).status, 200);
+  const complete = await call();
+  assert.equal(complete.status, 200);
+  assert.ok(!("outputIncomplete" in await complete.json()));
+  // A truncated model response must reach the CLI flagged, never as a normal result.
+  outputIncomplete = true;
+  assert.equal((await (await call()).json()).outputIncomplete, true);
+  outputIncomplete = false;
 }
 repositoryExists = false;
 assert.equal((await calls[1]()).status, 404);
