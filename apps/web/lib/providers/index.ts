@@ -8,6 +8,7 @@ import { grokProvider } from "./grok";
 import { openrouterProvider } from "./openrouter";
 import { alibabaProvider } from "./alibaba";
 import { acpProvider } from "./acp";
+import { bedrockProvider } from "./bedrock";
 import { opencodeProvider } from "./opencode";
 import { claudeCodeProvider } from "./claude-code";
 import { mockProvider } from "./mock";
@@ -24,6 +25,7 @@ export type AiProvider =
   | "openrouter"
   | "alibaba"
   | "acp"
+  | "bedrock"
   | "opencode"
   | "claude-code"
   | "mock"
@@ -132,6 +134,7 @@ const PROVIDERS: Partial<Record<AiProvider, Provider>> = {
   openrouter: openrouterProvider,
   alibaba: alibabaProvider,
   acp: acpProvider,
+  bedrock: bedrockProvider,
   opencode: opencodeProvider,
   "claude-code": claudeCodeProvider,
   ...(mockProvidersAllowed

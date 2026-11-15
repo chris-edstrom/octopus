@@ -135,7 +135,8 @@ export function calcCost(
   // Stored Anthropic input excludes cache reads/writes; OpenAI input includes them.
   // Keep persisted semantics intact, including old rows. Never infer the provider
   // from a model name: an OpenRouter Claude response uses inclusive input.
-  const plainInput = provider === "anthropic" ? inputTokens : Math.max(inputTokens - cacheReadTokens - cacheWriteTokens, 0);
+  // Bedrock returns the Anthropic Messages usage shape, so its input is exclusive too.
+  const plainInput = provider === "anthropic" || provider === "bedrock" ? inputTokens : Math.max(inputTokens - cacheReadTokens - cacheWriteTokens, 0);
   const ttl = provider === "anthropic" && cacheWriteTtl ? cacheWriteTtl : process.env.PROMPT_CACHE_TTL;
   const cacheWriteMultiplier = provider === "openai" || ttl === "5m" ? 1.25 : 2;
   const openaiReadMultiplier = /^(gpt-4o(-mini)?|gpt-4\.5-preview|o1(-mini|-preview)?|o3-mini)(-\d{4}-\d{2}-\d{2})?$/.test(model) ? 0.5
@@ -207,6 +208,7 @@ function orgOwnsKeyForProvider(
     case "ollama":
     case "local":
     case "acp":
+    case "bedrock":
     case "opencode":
     case "mock":
     case "mock-fail":

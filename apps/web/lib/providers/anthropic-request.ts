@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { AiCreateParams } from "./index";
+import type { AiCreateParams, AiResponse } from "./index";
+import { completionEvidence } from "./request-evidence";
 import { splitSystemForCache, type CacheTtl } from "./system-cache";
 import { resolveThinking, resolveThinkingOverride } from "./thinking";
 import { stripLoneSurrogates } from "./sanitize";
@@ -68,4 +69,48 @@ export function anthropicCountProjection(body: AnthropicRequest): Anthropic.Mess
     || !VALID_EFFORTS.includes(body.output_config.effort as typeof VALID_EFFORTS[number])) return null;
   const { max_tokens: _maxTokens, stream: _stream, ...input } = body;
   return { ...input, thinking: body.thinking };
+}
+
+/** Map a finished Messages response to text, completion and usage. Shared by the Anthropic and Bedrock adapters. */
+export function readAnthropicMessage(response: Anthropic.Message, useTool: boolean): Pick<AiResponse, "text" | "completion" | "usage"> {
+  let text: string;
+  if (useTool) {
+    const toolUse = response.content.find((block) => block.type === "tool_use");
+    if (!toolUse || toolUse.type !== "tool_use") {
+      throw Object.assign(new Error(
+        `Anthropic returned no tool_use (stop_reason: ${response.stop_reason}, blocks: ${response.content.map((b) => b.type).join(",") || "none"})`,
+      ), response.stop_reason === "refusal" ? { code: "PROVIDER_REFUSAL" } : {});
+    }
+    text = JSON.stringify(toolUse.input);
+    if (!text || text === "{}") {
+      throw new Error(
+        `Anthropic returned empty structured output (stop_reason: ${response.stop_reason})`,
+      );
+    }
+  } else {
+    // Models with extended thinking (e.g. claude-fable-5) prepend a thinking
+    // block, so the text block is not necessarily content[0] — collect every
+    // text block instead of only the first.
+    text = response.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("");
+    // Surface empty responses as errors instead of silently returning an empty
+    // review that downstream code would PATCH to GitHub as a blank comment (422).
+    if (!text) {
+      throw Object.assign(new Error(
+        `Anthropic returned no text (stop_reason: ${response.stop_reason}, blocks: ${response.content.map((b) => b.type).join(",") || "none"})`,
+      ), response.stop_reason === "refusal" ? { code: "PROVIDER_REFUSAL" } : {});
+    }
+  }
+  return {
+    text,
+    completion: completionEvidence(response.stop_reason, useTool ? ["tool_use"] : ["end_turn"]),
+    usage: {
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+      cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
+    },
+  };
 }

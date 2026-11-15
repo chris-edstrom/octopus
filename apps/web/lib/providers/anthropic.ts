@@ -1,8 +1,8 @@
 import "server-only";
-import { observeAiRequest, completionEvidence, sdkRequestOptions } from "./request-evidence";
+import { observeAiRequest, sdkRequestOptions } from "./request-evidence";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Provider, AiCreateParams, AiResponse } from "./index";
-import { prepareAnthropicRequest, freezeRequest, usesNativeJsonOutput, type AnthropicRequest } from "./anthropic-request";
+import { prepareAnthropicRequest, freezeRequest, usesNativeJsonOutput, readAnthropicMessage, type AnthropicRequest } from "./anthropic-request";
 import { admitAnthropicReview } from "./anthropic-capacity";
 import { providerKeyOwner } from "../provider-failure";
 import { generationTimeout, CapacityAdmissionError, capacityReceipt, refuseCapacity, type CapacityAdmissionReceipt } from "../review-capacity";
@@ -91,48 +91,6 @@ export const anthropicProvider: Provider = {
       throw err;
     }
 
-    let text: string;
-    if (useTool) {
-      const toolUse = response.content.find((block) => block.type === "tool_use");
-      if (!toolUse || toolUse.type !== "tool_use") {
-        throw Object.assign(new Error(
-          `Anthropic returned no tool_use (stop_reason: ${response.stop_reason}, blocks: ${response.content.map((b) => b.type).join(",") || "none"})`,
-        ), response.stop_reason === "refusal" ? { code: "PROVIDER_REFUSAL" } : {});
-      }
-      text = JSON.stringify(toolUse.input);
-      if (!text || text === "{}") {
-        throw new Error(
-          `Anthropic returned empty structured output (stop_reason: ${response.stop_reason})`,
-        );
-      }
-    } else {
-      // Models with extended thinking (e.g. claude-fable-5) prepend a thinking
-      // block, so the text block is not necessarily content[0] — collect every
-      // text block instead of only the first.
-      text = response.content
-        .filter((block) => block.type === "text")
-        .map((block) => block.text)
-        .join("");
-      // Surface empty responses as errors instead of silently returning an empty
-      // review that downstream code would PATCH to GitHub as a blank comment (422).
-      if (!text) {
-        throw Object.assign(new Error(
-          `Anthropic returned no text (stop_reason: ${response.stop_reason}, blocks: ${response.content.map((b) => b.type).join(",") || "none"})`,
-        ), response.stop_reason === "refusal" ? { code: "PROVIDER_REFUSAL" } : {});
-      }
-    }
-
-    return {
-      text,
-      completion: completionEvidence(response.stop_reason, useTool ? ["tool_use"] : ["end_turn"]),
-      provider: "anthropic",
-      model: params.model,
-      usage: {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-        cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
-        cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
-      },
-    };
+    return { ...readAnthropicMessage(response, useTool), provider: "anthropic", model: params.model };
   },
 };

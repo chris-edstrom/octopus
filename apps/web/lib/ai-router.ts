@@ -35,6 +35,7 @@ const PROVIDER_FALLBACK: Record<string, AiProvider> = {
   "ollama:": "ollama", // namespaced local models, e.g. "ollama:qwen2.5-coder:32b"
   "acp:": "acp", // OpenAI-compatible gateway (Agent Communication Protocol)
   "opencode:": "opencode", // OpenAI-compatible gateway
+  "bedrock:": "bedrock", // Claude on AWS Bedrock; the rest is a Bedrock model or inference-profile id
   // "mock-fail-" MUST precede "mock-" (both match a "mock-fail-…" id). Test
   // doubles only — never registered in production (see providers/index.ts).
   "mock-fail-": "mock-fail",
@@ -94,7 +95,7 @@ type OrgKeyField = "anthropicApiKey" | "openaiApiKey" | "googleApiKey" | "grokAp
 const PROVIDER_KEY_FIELDS: Record<AiProvider, OrgKeyField | null> = {
   anthropic: "anthropicApiKey", openai: "openaiApiKey", google: "googleApiKey", grok: "grokApiKey",
   openrouter: "openrouterApiKey", alibaba: "alibabaApiKey",
-  ollama: null, local: null, acp: null, opencode: null, "claude-code": null, mock: null, "mock-fail": null,
+  ollama: null, local: null, acp: null, bedrock: null, opencode: null, "claude-code": null, mock: null, "mock-fail": null,
 };
 
 async function getOrgKeyForProvider(orgId: string, provider: AiProvider): Promise<string | null> {

@@ -13,6 +13,7 @@
     "clean": "rm -rf .next .turbo node_modules"
   },
   "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "0.29.2",
     "@anthropic-ai/sdk": "^0.91.1",
     "@aws-sdk/client-s3": "^3.1030.0",
     "@base-ui/react": "^1.2.0",
