@@ -20,6 +20,7 @@ import { updateDefaultModels } from "../../actions";
 import { updateRepoModels } from "../../repositories/actions";
 import { searchRepoModels, type RepoModelItem } from "./actions";
 import { OllamaModels } from "./ollama-models";
+import { GatewayModelField, GATEWAY_MODEL_PREFIX } from "./gateway-model-field";
 
 type AvailableModel = {
   modelId: string;
@@ -368,7 +369,11 @@ export function ModelsSettings({
   const orgEmbedModel = currentEmbedModelId
     ? availableModels.find((m) => m.modelId === currentEmbedModelId)
     : null;
-  const orgDefaultLlmName = orgLlmModel?.displayName ?? platformDefaultLlmName;
+  // A gateway model has no catalog row, so its id is its display name.
+  const orgDefaultLlmName =
+    orgLlmModel?.displayName ??
+    (currentModelId?.startsWith(GATEWAY_MODEL_PREFIX) ? currentModelId : null) ??
+    platformDefaultLlmName;
   const orgDefaultEmbedName = orgEmbedModel?.displayName ?? platformDefaultEmbedName;
 
   const llmModels = availableModels.filter((m) => m.category === "llm");
@@ -415,11 +420,22 @@ export function ModelsSettings({
                     {m.displayName} ({m.provider})
                   </option>
                 ))}
+                {/* Gateway ids are free-form, so the one in use needs its own
+                    option or the select would submit the platform default. */}
+                {selectedModelId.startsWith(GATEWAY_MODEL_PREFIX) && (
+                  <option value={selectedModelId}>{selectedModelId} (gateway)</option>
+                )}
               </select>
               <p className="text-xs text-muted-foreground">
                 Used for PR reviews, analysis, summaries, and chat.
               </p>
             </div>
+
+            <GatewayModelField
+              value={selectedModelId}
+              onChange={setSelectedModelId}
+              isOwner={isOwner}
+            />
 
             <Separator />
 

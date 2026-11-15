@@ -2,6 +2,7 @@ import "server-only";
 import { AiProviderFailure, rememberProviderRoute, type KeyOwner } from "../provider-failure";
 import { prisma } from "@octopus/db";
 import { decryptStringMaybeLegacy } from "@/lib/crypto";
+import { readBoundedJson } from "@/lib/bounded-json";
 import type { Provider, AiCreateParams, AiResponse } from "./index";
 import { callOpenAiGateway } from "./openai-gateway";
 import { validateProviderUrl } from "./url-validation";
@@ -65,3 +66,50 @@ export const acpProvider: Provider = {
     }
   },
 };
+
+const MODEL_LIST_TIMEOUT_MS = 5000;
+const MODEL_LIST_MAX_BYTES = 1024 * 1024;
+const MODEL_LIST_MAX_MODELS = 500;
+const MODEL_ID_MAX_LENGTH = 200;
+
+export type GatewayModelList =
+  | { status: "unconfigured" }
+  | { status: "unavailable" }
+  | { status: "ok"; models: string[] };
+
+/**
+ * Model ids served by the gateway (`GET <origin>/v1/models`), for the Settings
+ * model picker. Resolves the gateway through the same path as reviews, so the
+ * per-org URL gets the same SSRF validation and the API key stays server-side.
+ * Many gateways do not serve /v1/models; any failure (rejected URL, timeout,
+ * non-2xx, oversized or malformed body) returns "unavailable" so the UI falls
+ * back to a free-form model id. Redirects are refused: a validated origin must
+ * not be able to forward the bearer token to another host.
+ */
+export async function listGatewayModels(orgId?: string | null): Promise<GatewayModelList> {
+  try {
+    const config = await resolveConfig(orgId);
+    if (!config) return { status: "unconfigured" };
+    const res = await fetch(`${config.baseUrl}/v1/models`, {
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+      redirect: "error",
+      signal: AbortSignal.timeout(MODEL_LIST_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
+      return { status: "unavailable" };
+    }
+    const parsed = await readBoundedJson(res, MODEL_LIST_MAX_BYTES);
+    const data = parsed.ok ? (parsed.value as { data?: unknown } | null)?.data : null;
+    if (!Array.isArray(data)) return { status: "unavailable" };
+    const ids = new Set<string>();
+    for (const entry of data) {
+      const id = (entry as { id?: unknown } | null)?.id;
+      if (typeof id === "string" && id.trim() && id.length <= MODEL_ID_MAX_LENGTH) ids.add(id.trim());
+      if (ids.size >= MODEL_LIST_MAX_MODELS) break;
+    }
+    return { status: "ok", models: [...ids].sort() };
+  } catch {
+    return { status: "unavailable" };
+  }
+}

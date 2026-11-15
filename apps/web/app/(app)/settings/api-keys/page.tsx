@@ -5,6 +5,7 @@ import { prisma } from "@octopus/db";
 import { hasOrgPermission } from "@/lib/org-permissions";
 import { maskStoredKey } from "@/lib/api-key-preview";
 import { ApiKeysForm } from "../api-keys-form";
+import { GatewayForm } from "../gateway-form";
 
 export default async function ApiKeysPage() {
   const session = await auth.api.getSession({
@@ -33,6 +34,8 @@ export default async function ApiKeysPage() {
           grokApiKey: true,
           openrouterApiKey: true,
           alibabaApiKey: true,
+          acpBaseUrl: true,
+          acpApiKey: true,
         },
       },
     },
@@ -43,16 +46,25 @@ export default async function ApiKeysPage() {
   const canManage = hasOrgPermission(member, "settings:manage");
 
   return (
-    <ApiKeysForm
-      key={member.organization.id}
-      openaiApiKey={maskStoredKey(member.organization.openaiApiKey)}
-      anthropicApiKey={maskStoredKey(member.organization.anthropicApiKey)}
-      googleApiKey={maskStoredKey(member.organization.googleApiKey)}
-      cohereApiKey={maskStoredKey(member.organization.cohereApiKey)}
-      grokApiKey={maskStoredKey(member.organization.grokApiKey)}
-      openrouterApiKey={maskStoredKey(member.organization.openrouterApiKey)}
-      alibabaApiKey={maskStoredKey(member.organization.alibabaApiKey)}
-      isOwner={canManage}
-    />
+    <div className="space-y-6">
+      <ApiKeysForm
+        key={member.organization.id}
+        openaiApiKey={maskStoredKey(member.organization.openaiApiKey)}
+        anthropicApiKey={maskStoredKey(member.organization.anthropicApiKey)}
+        googleApiKey={maskStoredKey(member.organization.googleApiKey)}
+        cohereApiKey={maskStoredKey(member.organization.cohereApiKey)}
+        grokApiKey={maskStoredKey(member.organization.grokApiKey)}
+        openrouterApiKey={maskStoredKey(member.organization.openrouterApiKey)}
+        alibabaApiKey={maskStoredKey(member.organization.alibabaApiKey)}
+        isOwner={canManage}
+      />
+      {/* The gateway URL can name an internal host, so only admins see it. */}
+      <GatewayForm
+        key={`gateway-${member.organization.id}`}
+        acpBaseUrl={canManage ? member.organization.acpBaseUrl : null}
+        acpApiKey={maskStoredKey(member.organization.acpApiKey)}
+        isOwner={canManage}
+      />
+    </div>
   );
 }
