@@ -16,7 +16,9 @@ The validation pass (`validateFindings`) always calls `claude-sonnet-5` on the A
 - `review-validation-model.test.ts` (6 tests): platform key, organization key, no key, no review model given, and that `validateFindings` sends the request and records usage on the chosen model.
 - `review-follow-up`, `review-fallback-safe-errors`, `review-verification` and `cli-review-safe-errors` pass (11 tests).
 - `tsc --noEmit` in `apps/web`: 0 errors.
-- Not run against a live provider. The failure was seen on a self-hosted install with no Anthropic key, reviewing through an OpenAI-compatible gateway.
+- Live, self-hosted install with no Anthropic key, org model `bedrock:us.anthropic.claude-sonnet-4-5-20250929-v1:0` (needs the Bedrock provider PR):
+  - Before: `[ai-router] anthropic API error`, then `Two-pass validation failed, keeping all findings`.
+  - After: `Adversarial validation: 7/7 findings kept`. Usage row `review-validation`, provider `bedrock`, 3,380 input and 404 output tokens.
 
 ## Notes
 

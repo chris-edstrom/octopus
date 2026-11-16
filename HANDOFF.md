@@ -166,7 +166,9 @@ Found while testing, none fixed:
 
 ## Added 2026-11-16
 
-- `fix/validation-model-without-anthropic-key`: 6 new tests, 11 related review tests and typecheck pass. No live review was run, the AWS SSO session had expired.
+- `fix/validation-model-without-anthropic-key`: 6 new tests, 11 related review tests and typecheck pass. Live on `tmp/e2e` with no Anthropic key: validation ran on the `bedrock:` review model, 7 of 7 findings kept, usage row 3,380 input and 404 output tokens.
+- The dev server must be restarted after a code change to the reviewer. The old queue worker keeps the old module and can take the job.
+- The LiteLLM container holds temporary AWS credentials. After a new SSO login, re-export them to `litellm/aws.env` and recreate the container, or embeddings return 403.
+- A review on Bedrock read 10,887 cached tokens that the previous review wrote.
 - `feat/bedrock-model-setting`: 4 new tests pass. The field was saved and reloaded in the browser on `tmp/e2e`.
 - `tmp/e2e` now has all twelve branches. The Bedrock field and the gateway field conflict in `models-settings.tsx` (4 hunks, keep both sides).
-- Still open: a live review on Bedrock with no Anthropic key, to see the validation pass succeed.
