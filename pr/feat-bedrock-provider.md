@@ -17,7 +17,7 @@ This adds a `bedrock:` provider built on `@anthropic-ai/bedrock-sdk` (pinned 0.2
 
 ## Notes
 
-- No settings field accepts a `bedrock:` id yet. The org default was set in the database for the live run.
-- Two-pass validation (`review-core.ts`, step 9) still calls Haiku on the Anthropic API whatever the org model is. Without `ANTHROPIC_API_KEY` it logs an error and keeps all findings. Not changed here.
+- No settings field accepts a `bedrock:` id in this PR. The org default was set in the database for the live run. A follow-up PR (`feat/bedrock-model-setting`) adds the field.
+- The validation pass still calls `claude-sonnet-5` on the Anthropic API whatever the org model is. Without `ANTHROPIC_API_KEY` it logs an error and keeps all findings. A separate PR (`fix/validation-model-without-anthropic-key`) fixes that for every provider.
 - `bun.lock` grows by about 1,400 lines for the AWS credential packages.
 - Conflicts with the path-prefix PR on one line of the self-hosting docs page. Whichever merges second needs a rebase.

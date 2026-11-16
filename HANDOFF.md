@@ -33,6 +33,8 @@ per logical change.
 | `feat/gateway-base-url-path-prefix` | `keepPath` for `acp` / `opencode` base URLs, trailing `/v1` accepted. | `feat/gateway-settings-ui` | item 4 |
 | `feat/embeddings-base-url` | `OCTOPUS_EMBED_BASE_URL` / `OCTOPUS_EMBED_API_KEY` for an OpenAI-compatible embeddings endpoint. | `master` | item 4 |
 | `feat/bedrock-provider` | Native `bedrock:` provider on `@anthropic-ai/bedrock-sdk` 0.29.2, keeps `cache_control`. | `master` | none |
+| `fix/validation-model-without-anthropic-key` | Validation pass uses the review model when neither the platform nor the organization has an Anthropic key. | `master` | none |
+| `feat/bedrock-model-setting` | "AWS Bedrock model" field on the Models page, saved as `bedrock:<id>`. | `feat/bedrock-provider` | none |
 
 ## Dependencies between branches
 
@@ -154,10 +156,17 @@ Run from `D:/worktrees/octo-e2e` (branch `tmp/e2e`, all ten branches merged, loc
 Found while testing, none fixed:
 
 - Connecting a Forgejo host queues an index job for every repository the account administers, with auto review on. 74 jobs were queued here. A deployment needs a dedicated account that administers only the intended repositories.
-- Two-pass validation (`review-core.ts`, step 9) calls Haiku on the Anthropic API whatever the org model is. Without `ANTHROPIC_API_KEY` it logs an error and keeps all findings.
-- No settings field accepts a `bedrock:` model id. `available_models` is empty on a fresh install, so the org default was set in the database.
+- Two-pass validation (`validateFindings`) calls `claude-sonnet-5` on the Anthropic API whatever the org model is. Without `ANTHROPIC_API_KEY` it logs an error and keeps all findings. Fixed on `fix/validation-model-without-anthropic-key` (2026-11-16).
+- No settings field accepts a `bedrock:` model id. `available_models` is empty on a fresh install, so the org default was set in the database. Fixed on `feat/bedrock-model-setting` (2026-11-16).
 - Gitea needs `write:user` to create a repository through `/user/repos`. The Forgejo card's scope list (`read:user`, `write:repository`, `write:issue`) is enough for reviews.
 - `prisma migrate deploy` fails on an empty database at `20260419212831_add_jira_integration`. `prisma db push` works.
 - Podman on this Windows box does not forward published ports to `localhost`. Use the VM address from `podman machine ssh "ip -4 -o addr show eth0"`.
 - `scripts/gitea-live-test.sh` prefers docker when both are installed. Set `CONTAINER_RUNTIME=podman` here.
 - A base URL with a path prefix was not exercised against LiteLLM.
+
+## Added 2026-11-16
+
+- `fix/validation-model-without-anthropic-key`: 6 new tests, 11 related review tests and typecheck pass. No live review was run, the AWS SSO session had expired.
+- `feat/bedrock-model-setting`: 4 new tests pass. The field was saved and reloaded in the browser on `tmp/e2e`.
+- `tmp/e2e` now has all twelve branches. The Bedrock field and the gateway field conflict in `models-settings.tsx` (4 hunks, keep both sides).
+- Still open: a live review on Bedrock with no Anthropic key, to see the validation pass succeed.
