@@ -3,6 +3,7 @@
  * reviewer.ts (PR reviews) and review-core.ts (local reviews).
  */
 
+import { prisma } from "@octopus/db";
 import { searchSimilarChunks } from "@/lib/qdrant";
 import { createEmbeddings } from "@/lib/embeddings";
 import { logAiUsage } from "@/lib/ai-usage";
@@ -223,6 +224,22 @@ export async function gatherVerificationContext(
 
 export const VALIDATION_MODEL = "claude-sonnet-5";
 
+/**
+ * The model for the validation pass. VALIDATION_MODEL runs on the Anthropic API,
+ * so it needs the platform key or the organization's own. An install with
+ * neither (a gateway or local model only) validates on the model that wrote
+ * the findings; without this every validation call fails and no finding is
+ * filtered.
+ */
+export async function resolveValidationModel(orgId: string, reviewModel?: string): Promise<string> {
+  if (!reviewModel || process.env.ANTHROPIC_API_KEY) return VALIDATION_MODEL;
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { anthropicApiKey: true },
+  });
+  return org?.anthropicApiKey ? VALIDATION_MODEL : reviewModel;
+}
+
 export async function validateFindings(
   findings: InlineFinding[],
   diff: string,
@@ -232,8 +249,12 @@ export async function validateFindings(
   logPrefix = "[review-validation]",
   verificationContext?: Map<number, string>,
   fileTree?: string,
+  /** The model that wrote the findings; see resolveValidationModel. */
+  reviewModel?: string,
 ): Promise<InlineFinding[]> {
   if (findings.length === 0) return findings;
+
+  const model = await resolveValidationModel(orgId, reviewModel);
 
   // Build findings summary with per-finding verification context inline
   const findingsSummary = findings
@@ -271,7 +292,7 @@ export async function validateFindings(
 
   const response = await createAiMessage(
     {
-      model: VALIDATION_MODEL,
+      model,
       // Raised from 2048 to fit per-finding citations/refutations without the
       // validator truncating its own JSON.
       maxTokens: 4096,
@@ -362,7 +383,7 @@ Output ONLY the JSON array, nothing else.`,
 
   await logAiUsage({
     provider: response.provider,
-    model: VALIDATION_MODEL,
+    model,
     operation: "review-validation",
     inputTokens: response.usage.inputTokens,
     outputTokens: response.usage.outputTokens,
