@@ -13,6 +13,16 @@ const token = process.env.GITEA_LIVE_TOKEN!;
 // this process. It differs from loopback when Gitea runs in a container, and it
 // may point at a relay; GITEA_LIVE_HOOK_PORT then pins the port listened on here.
 const hookPort = Number(process.env.GITEA_LIVE_HOOK_PORT ?? 0);
+// GITEA_LIVE_SHARED=1 is for a server other people use, such as a company
+// instance: the repository is private and deleted afterwards, no account is
+// created, and webhooks are checked only when GITEA_LIVE_HOOK_ORIGIN is set,
+// since such a server usually cannot reach this process. Gitea wants write:user
+// to create a repository, so GITEA_LIVE_REPO=owner/name names an existing one
+// (initialised with a README on main) and the token then needs only read:user,
+// write:repository and write:issue. That repository is kept; each run adds one
+// branch and one pull request to it.
+const shared = process.env.GITEA_LIVE_SHARED === "1";
+const hooks = !shared || Boolean(process.env.GITEA_LIVE_HOOK_ORIGIN);
 process.env.OCTOPUS_SELF_HOSTED = "true";
 process.env.FORGEJO_ALLOWED_PRIVATE_ORIGINS = host;
 process.env.OCTOPUS_DATA_KEY = randomBytes(32).toString("hex");
@@ -96,6 +106,7 @@ const hookOrigin = (process.env.GITEA_LIVE_HOOK_ORIGIN ?? `http://127.0.0.1:${se
 const delivered = (event: string, action: string) => until(`${event}:${action} delivery`, () =>
   received.find(entry => entry.headers.get("x-gitea-event") === event && entry.body.action === action));
 
+let disposable: string | undefined;
 try {
   // ── Connection ────────────────────────────────────────────────────────────
   const { version } = await api<{ version: string }>("GET", "/version");
@@ -106,24 +117,29 @@ try {
 
   // ── Fixture: repository, webhook, feature branch, pull request ────────────
   const name = `octopus-live-${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
-  const created = await api<{ id: number; full_name: string }>("POST", "/user/repos", { name, auto_init: true, default_branch: "main", private: false });
+  const existing = shared ? process.env.GITEA_LIVE_REPO : undefined;
+  const branch = existing ? name : "feature";
+  const created = existing
+    ? await api<{ id: number; full_name: string }>("GET", `/repos/${existing}`)
+    : await api<{ id: number; full_name: string }>("POST", "/user/repos", { name, auto_init: true, default_branch: "main", private: shared });
   repository = { id: created.id, fullName: created.full_name };
   const repoPath = `/repos/${created.full_name}`;
-  await api("POST", `${repoPath}/hooks`, { type: "gitea", active: true, events: ["pull_request", "issue_comment"],
+  if (!existing) disposable = repoPath;
+  if (hooks) await api("POST", `${repoPath}/hooks`, { type: "gitea", active: true, events: ["pull_request", "issue_comment"],
     config: { url: `${hookOrigin}/api/forgejo/webhook/${integrationId}`, content_type: "json", secret: webhookSecret } });
   const source = "export const answer = 41;\n// second line\n";
-  await api("POST", `${repoPath}/contents/src/answer.ts`, { content: Buffer.from(source).toString("base64"), message: "add answer", new_branch: "feature" });
-  const pull = await api<{ number: number; head: { sha: string } }>("POST", `${repoPath}/pulls`, { head: "feature", base: "main", title: "Add the answer" });
+  await api("POST", `${repoPath}/contents/src/answer.ts`, { content: Buffer.from(source).toString("base64"), message: "add answer", new_branch: branch });
+  const pull = await api<{ number: number; head: { sha: string } }>("POST", `${repoPath}/pulls`, { head: branch, base: "main", title: "Add the answer" });
 
   // ── Repository reads ──────────────────────────────────────────────────────
   const listed = (await forgejo.listUserRepos(organizationId)).find(repo => repo.id === created.id);
   assert.equal(listed?.full_name, created.full_name);
   assert.equal(listed?.default_branch, "main");
-  assert.equal(await forgejo.getBranchHead(organizationId, created.full_name, "feature"), pull.head.sha);
+  assert.equal(await forgejo.getBranchHead(organizationId, created.full_name, branch), pull.head.sha);
   await assert.rejects(forgejo.getBranchHead(organizationId, created.full_name, "no-such-branch"), { status: 404 });
-  const tree = await forgejo.getRepositoryTree(organizationId, created.full_name, "feature");
+  const tree = await forgejo.getRepositoryTree(organizationId, created.full_name, branch);
   assert.deepEqual([...tree].sort(), ["README.md", "src/answer.ts"]);
-  assert.equal(await forgejo.getFileContent(organizationId, created.full_name, "feature", "src/answer.ts"), source);
+  assert.equal(await forgejo.getFileContent(organizationId, created.full_name, branch, "src/answer.ts"), source);
   assert.equal(await forgejo.getFileContent(organizationId, created.full_name, "main", "src/answer.ts"), "", "a missing file reads as empty");
   await assert.rejects(forgejo.getFileContent(organizationId, created.full_name, "main", "src/answer.ts", { strict: true }));
 
@@ -168,38 +184,45 @@ try {
     assert.equal(statuses.find(status => status.context === `octopus/${state}`)?.status, expected);
   }
 
-  // ── Webhooks delivered by Gitea itself ────────────────────────────────────
-  const opened = await delivered("pull_request", "opened");
-  assert.equal(opened.status, 200);
-  assert.match(opened.headers.get("x-gitea-signature") ?? "", /^[a-f0-9]{64}$/);
-  // The reason the route needs the fallback: Gitea never sends the Forgejo names.
-  assert.equal(opened.headers.get("x-forgejo-signature"), null);
-  assert.equal(opened.headers.get("x-forgejo-event"), null);
-  const automatic = await until("the automatic review", () => reviews.find(review => review.automatic === true));
-  assert.deepEqual([automatic.provider, automatic.prNumber, automatic.headSha, automatic.prTitle, automatic.repoFullName],
-    ["forgejo", pull.number, pull.head.sha, "Add the answer", created.full_name]);
+  if (hooks) {
+    // ── Webhooks delivered by Gitea itself ────────────────────────────────────
+    const opened = await delivered("pull_request", "opened");
+    assert.equal(opened.status, 200);
+    assert.match(opened.headers.get("x-gitea-signature") ?? "", /^[a-f0-9]{64}$/);
+    // The reason the route needs the fallback: Gitea never sends the Forgejo names.
+    assert.equal(opened.headers.get("x-forgejo-signature"), null);
+    assert.equal(opened.headers.get("x-forgejo-event"), null);
+    const automatic = await until("the automatic review", () => reviews.find(review => review.automatic === true));
+    assert.deepEqual([automatic.provider, automatic.prNumber, automatic.headSha, automatic.prTitle, automatic.repoFullName],
+      ["forgejo", pull.number, pull.head.sha, "Add the answer", created.full_name]);
 
-  // A mention from another account starts a review; the bot's own comments never do.
-  const before = reviews.length;
-  await forgejo.createPullRequestComment(organizationId, created.full_name, pull.number, "/octopus review");
-  const reviewer = `reviewer-${randomBytes(3).toString("hex")}`;
-  await api("POST", "/admin/users", { username: reviewer, email: `${reviewer}@example.com`, password: randomBytes(18).toString("base64url"), must_change_password: false });
-  const mention = await api<{ id: number }>("POST", `${repoPath}/issues/${pull.number}/comments?sudo=${reviewer}`, { body: "@octopus please review" });
-  const requested = await until("the mention review", () => reviews.find(review => review.triggerCommentId === mention.id));
-  assert.deepEqual([requested.automatic, requested.prNumber, requested.headSha, requested.prAuthor],
-    [false, pull.number, pull.head.sha, connection.username]);
-  assert.equal(reviews.length, before + 1, "only the other account's mention started a review");
-  assert.ok(received.every(entry => entry.status === 200), `every Gitea delivery was accepted: ${received.map(entry => entry.status)}`);
+    // A mention from another account starts a review; the bot's own comments never do.
+    const before = reviews.length;
+    await forgejo.createPullRequestComment(organizationId, created.full_name, pull.number, "/octopus review");
+    // The other account needs an administrator token, so a shared server skips it.
+    if (!shared) {
+      const reviewer = `reviewer-${randomBytes(3).toString("hex")}`;
+      await api("POST", "/admin/users", { username: reviewer, email: `${reviewer}@example.com`, password: randomBytes(18).toString("base64url"), must_change_password: false });
+      const mention = await api<{ id: number }>("POST", `${repoPath}/issues/${pull.number}/comments?sudo=${reviewer}`, { body: "@octopus please review" });
+      const requested = await until("the mention review", () => reviews.find(review => review.triggerCommentId === mention.id));
+      assert.deepEqual([requested.automatic, requested.prNumber, requested.headSha, requested.prAuthor],
+        [false, pull.number, pull.head.sha, connection.username]);
+      assert.equal(reviews.length, before + 1, "only the other account's mention started a review");
+    }
+    assert.ok(received.every(entry => entry.status === 200), `every Gitea delivery was accepted: ${received.map(entry => entry.status)}`);
 
-  // A redelivery is byte-identical; the route must acknowledge it without a second review.
-  const replay = await route(opened.url, opened.headers, opened.raw);
-  assert.deepEqual([replay.status, await replay.json()], [200, { ok: true, duplicate: true }]);
-  // A real Gitea delivery with one flipped body byte no longer matches its signature.
-  const tampered = Buffer.from(opened.raw);
-  tampered[tampered.length - 2] ^= 1;
-  assert.equal((await route(opened.url, opened.headers, tampered)).status, 401);
-  assert.equal(reviews.length, before + 1);
+    // A redelivery is byte-identical; the route must acknowledge it without a second review.
+    const replay = await route(opened.url, opened.headers, opened.raw);
+    assert.deepEqual([replay.status, await replay.json()], [200, { ok: true, duplicate: true }]);
+    // A real Gitea delivery with one flipped body byte no longer matches its signature.
+    const tampered = Buffer.from(opened.raw);
+    tampered[tampered.length - 2] ^= 1;
+    assert.equal((await route(opened.url, opened.headers, tampered)).status, 401);
+    assert.equal(reviews.length, before + (shared ? 0 : 1));
+  }
   console.log(`Gitea ${version} live checks passed (${received.length} webhook deliveries)`);
 } finally {
   server.stop(true);
+  // Cleanup only, so it does not go through the product transport, which has no DELETE.
+  if (shared && disposable) await fetch(`${host}/api/v1${disposable}`, { method: "DELETE", headers: { authorization: `token ${token}` } });
 }

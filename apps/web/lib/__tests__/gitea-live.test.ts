@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 
 // Opt-in: needs a running Gitea. `scripts/gitea-live-test.sh` starts a disposable
 // one and sets these. Without them the test is skipped, so the default suite
-// stays hermetic.
+// stays hermetic. For a server other people use, set GITEA_LIVE_SHARED=1 and
+// GITEA_LIVE_REPO=owner/name as well; the harness explains both.
 const configured = Boolean(process.env.GITEA_LIVE_URL && process.env.GITEA_LIVE_TOKEN);
 
 it.skipIf(!configured)("reads, publishes and receives webhooks against a live Gitea server", async () => {
