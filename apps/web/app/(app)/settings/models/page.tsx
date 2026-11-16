@@ -79,6 +79,9 @@ export default async function ModelsPage() {
   // Local-model panel only appears when Ollama is actually configured — on the
   // hosted SaaS OLLAMA_SERVER_URL is unset, so the panel stays hidden.
   const ollamaEnabled = !!process.env.OLLAMA_SERVER_URL?.trim();
+  // The Bedrock provider is configured by AWS_REGION alone (credentials come
+  // from the AWS chain), so that is what shows its model field.
+  const bedrockEnabled = !!process.env.AWS_REGION?.trim();
 
   const [platformDefaults, sysConfig] = await Promise.all([
     prisma.availableModel.findMany({
@@ -114,6 +117,7 @@ export default async function ModelsPage() {
       initialRepos={repos}
       totalRepoCount={totalCount}
       ollamaEnabled={ollamaEnabled}
+      bedrockEnabled={bedrockEnabled}
     />
   );
 }

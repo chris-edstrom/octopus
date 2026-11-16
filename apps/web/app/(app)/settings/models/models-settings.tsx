@@ -20,6 +20,8 @@ import { updateDefaultModels } from "../../actions";
 import { updateRepoModels } from "../../repositories/actions";
 import { searchRepoModels, type RepoModelItem } from "./actions";
 import { OllamaModels } from "./ollama-models";
+import { BedrockModelField } from "./bedrock-model-field";
+import { BEDROCK_MODEL_PREFIX } from "@/lib/bedrock-model-id";
 
 type AvailableModel = {
   modelId: string;
@@ -343,6 +345,7 @@ export function ModelsSettings({
   initialRepos,
   totalRepoCount,
   ollamaEnabled,
+  bedrockEnabled,
 }: {
   isOwner: boolean;
   availableModels: AvailableModel[];
@@ -355,6 +358,7 @@ export function ModelsSettings({
   initialRepos: RepoModelItem[];
   totalRepoCount: number;
   ollamaEnabled: boolean;
+  bedrockEnabled: boolean;
 }) {
   const [selectedModelId, setSelectedModelId] = useState(currentModelId ?? "");
   const [selectedEmbedModelId, setSelectedEmbedModelId] = useState(currentEmbedModelId ?? "");
@@ -368,7 +372,11 @@ export function ModelsSettings({
   const orgEmbedModel = currentEmbedModelId
     ? availableModels.find((m) => m.modelId === currentEmbedModelId)
     : null;
-  const orgDefaultLlmName = orgLlmModel?.displayName ?? platformDefaultLlmName;
+  // A Bedrock model has no catalog row, so its id is its display name.
+  const orgDefaultLlmName =
+    orgLlmModel?.displayName ??
+    (currentModelId?.startsWith(BEDROCK_MODEL_PREFIX) ? currentModelId : null) ??
+    platformDefaultLlmName;
   const orgDefaultEmbedName = orgEmbedModel?.displayName ?? platformDefaultEmbedName;
 
   const llmModels = availableModels.filter((m) => m.category === "llm");
@@ -415,11 +423,25 @@ export function ModelsSettings({
                     {m.displayName} ({m.provider})
                   </option>
                 ))}
+                {/* Bedrock ids are free-form, so the one in use needs its own
+                    option or the select would submit the platform default. */}
+                {selectedModelId.startsWith(BEDROCK_MODEL_PREFIX) && (
+                  <option value={selectedModelId}>{selectedModelId} (bedrock)</option>
+                )}
               </select>
               <p className="text-xs text-muted-foreground">
                 Used for PR reviews, analysis, summaries, and chat.
               </p>
             </div>
+
+            {/* Shown while Bedrock is configured, or to clear an id saved earlier. */}
+            {(bedrockEnabled || selectedModelId.startsWith(BEDROCK_MODEL_PREFIX)) && (
+              <BedrockModelField
+                value={selectedModelId}
+                onChange={setSelectedModelId}
+                isOwner={isOwner}
+              />
+            )}
 
             <Separator />
 
