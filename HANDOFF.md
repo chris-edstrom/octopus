@@ -139,3 +139,25 @@ typecheck. The PR template has Summary, Changes and Test plan sections.
   `FORGEJO_ALLOWED_PRIVATE_ORIGINS` and, for an internal CA, `NODE_EXTRA_CA_CERTS`.
 - Licence: modified MIT. The branding clause applies only above 10,000 monthly active
   users or 100,000 USD monthly revenue of the product using it.
+
+## Live test results, 2026-11-15
+
+Run from `D:/worktrees/octo-e2e` (branch `tmp/e2e`, all ten branches merged, local only, not pushed).
+
+- Bedrock direct: `bedrock-live.test.ts` on `feat/bedrock-provider` passes against AWS. Second request read back the 4,018 tokens the first wrote to the cache.
+- Gitea 28.1.0 (company instance): `gitea-live` harness passes with `GITEA_LIVE_SHARED=1` and `GITEA_LIVE_REPO=<owner>/octopus-live-test`. The mode is on `fix/gitea-webhook-headers`. Webhook receipt is not covered there, the server cannot reach a laptop.
+- Full app: Postgres, Qdrant and LiteLLM in podman, `next dev` on port 43300. Forgejo card connected to the company Gitea, 74 repositories synced.
+- Review through LiteLLM (`acp:claude-sonnet`, set in the new gateway model field) posted on the scratch PR. Embeddings went through `OCTOPUS_EMBED_BASE_URL` to Titan v2 (1024 dim).
+- Review through `bedrock:us.anthropic.claude-sonnet-4-5-20250929-v1:0` posted one inline comment and a failed commit status. Usage row: 3,566 input, 1,610 output, 10,887 cache write.
+- The pull_request deliveries in the full-app run were built from the real PR JSON and signed locally with the integration secret. Real Gitea deliveries are covered only by the disposable-container run.
+
+Found while testing, none fixed:
+
+- Connecting a Forgejo host queues an index job for every repository the account administers, with auto review on. 74 jobs were queued here. A deployment needs a dedicated account that administers only the intended repositories.
+- Two-pass validation (`review-core.ts`, step 9) calls Haiku on the Anthropic API whatever the org model is. Without `ANTHROPIC_API_KEY` it logs an error and keeps all findings.
+- No settings field accepts a `bedrock:` model id. `available_models` is empty on a fresh install, so the org default was set in the database.
+- Gitea needs `write:user` to create a repository through `/user/repos`. The Forgejo card's scope list (`read:user`, `write:repository`, `write:issue`) is enough for reviews.
+- `prisma migrate deploy` fails on an empty database at `20260419212831_add_jira_integration`. `prisma db push` works.
+- Podman on this Windows box does not forward published ports to `localhost`. Use the VM address from `podman machine ssh "ip -4 -o addr show eth0"`.
+- `scripts/gitea-live-test.sh` prefers docker when both are installed. Set `CONTAINER_RUNTIME=podman` here.
+- A base URL with a path prefix was not exercised against LiteLLM.
